@@ -94,6 +94,8 @@ def chat():
         messages = data.get('messages', [])
         chat_id = data.get('chat_id')
         
+        print(f"Received chat request - chat_id: {chat_id}, message count: {len(messages)}")
+        
         if chat_id:
             chat = Chat.query.get(chat_id)
             if not chat:
@@ -105,48 +107,58 @@ def chat():
             db.session.add(chat)
             db.session.commit()
             chat_id = chat.id
+            print(f"Created new chat with ID: {chat_id}")
         
         def generate():
-            response = client.chat.completions.create(
-                model="deepseek-reasoner",
-                messages=messages,
-                stream=True
-            )
-            
-            reasoning_content = ""
-            content = ""
-            saved_messages = []
-            
-            # Save user messages first
-            for msg in messages:
-                message = Message(role=msg['role'], content=msg['content'], chat_id=chat_id)
-                db.session.add(message)
-                db.session.commit()
-                saved_messages.append({
-                    'id': message.id,
-                    'role': message.role,
-                    'content': message.content
-                })
-                yield f"data: {json.dumps({'type': 'message_id', 'id': message.id})}\n\n"
-            
-            for chunk in response:
-                if hasattr(chunk.choices[0].delta, 'reasoning_content') and chunk.choices[0].delta.reasoning_content:
-                    reasoning_content += chunk.choices[0].delta.reasoning_content
-                    yield f"data: {json.dumps({'type': 'reasoning', 'content': reasoning_content})}\n\n"
-                elif hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
-                    content += chunk.choices[0].delta.content
-                    yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
-            
-            if content:
-                message = Message(
-                    role='assistant',
-                    content=content,
-                    reasoning_content=reasoning_content,
-                    chat_id=chat_id
+            try:
+                print("Starting chat completion request...")
+                response = client.chat.completions.create(
+                    model="deepseek-reasoner",
+                    messages=messages,
+                    stream=True
                 )
-                db.session.add(message)
-                db.session.commit()
-                yield f"data: {json.dumps({'type': 'message_id', 'id': message.id})}\n\n"
+                
+                reasoning_content = ""
+                content = ""
+                saved_messages = []
+                
+                # Save user messages first
+                for msg in messages:
+                    message = Message(role=msg['role'], content=msg['content'], chat_id=chat_id)
+                    db.session.add(message)
+                    db.session.commit()
+                    saved_messages.append({
+                        'id': message.id,
+                        'role': message.role,
+                        'content': message.content
+                    })
+                    yield f"data: {json.dumps({'type': 'message_id', 'id': message.id})}\n\n"
+                
+                print("Processing stream response...")
+                for chunk in response:
+                    if hasattr(chunk.choices[0].delta, 'reasoning_content') and chunk.choices[0].delta.reasoning_content:
+                        reasoning_content += chunk.choices[0].delta.reasoning_content
+                        yield f"data: {json.dumps({'type': 'reasoning', 'content': reasoning_content})}\n\n"
+                    elif hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
+                        content += chunk.choices[0].delta.content
+                        yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                
+                if content:
+                    print("Saving assistant message...")
+                    message = Message(
+                        role='assistant',
+                        content=content,
+                        reasoning_content=reasoning_content,
+                        chat_id=chat_id
+                    )
+                    db.session.add(message)
+                    db.session.commit()
+                    yield f"data: {json.dumps({'type': 'message_id', 'id': message.id})}\n\n"
+                
+                print("Stream completed successfully")
+            except Exception as e:
+                print(f"Error in generate function: {str(e)}")
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
         
         return Response(stream_with_context(generate()), mimetype='text/event-stream')
     except Exception as e:

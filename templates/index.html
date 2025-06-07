@@ -453,7 +453,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        messages: [...messages, { role: 'user', content: message }],
+                        messages: messages.concat([{ role: 'user', content: message }]),
                         chat_id: currentChatId
                     }),
                 });
@@ -477,26 +477,37 @@
                     const lines = chunk.split('\n');
                     
                     for (const line of lines) {
+                        if (!line.trim()) continue; // Skip empty lines
+                        
                         if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.slice(6));
-                            console.log('Received data:', data);
-                            
-                            if (data.type === 'message_id') {
-                                if (!userMessageId) {
-                                    userMessageId = data.id;
-                                    userMessageDiv.setAttribute('data-message-id', userMessageId);
-                                    console.log('Set user message ID:', userMessageId);
-                                } else {
-                                    assistantMessageId = data.id;
-                                    assistantMessageDiv.setAttribute('data-message-id', assistantMessageId);
-                                    console.log('Set assistant message ID:', assistantMessageId);
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                console.log('Received data:', data);
+                                
+                                if (data.type === 'error') {
+                                    throw new Error(data.error || 'Unknown error occurred');
                                 }
-                            } else if (data.type === 'reasoning') {
-                                reasoningContent = data.content;
-                                addMessageToUI('assistant', content, reasoningContent, assistantMessageId, assistantMessageDiv);
-                            } else if (data.type === 'content') {
-                                content = data.content;
-                                addMessageToUI('assistant', content, reasoningContent, assistantMessageId, assistantMessageDiv);
+                                
+                                if (data.type === 'message_id') {
+                                    if (!userMessageId) {
+                                        userMessageId = data.id;
+                                        userMessageDiv.setAttribute('data-message-id', userMessageId);
+                                        console.log('Set user message ID:', userMessageId);
+                                    } else {
+                                        assistantMessageId = data.id;
+                                        assistantMessageDiv.setAttribute('data-message-id', assistantMessageId);
+                                        console.log('Set assistant message ID:', assistantMessageId);
+                                    }
+                                } else if (data.type === 'reasoning') {
+                                    reasoningContent = data.content;
+                                    addMessageToUI('assistant', content, reasoningContent, assistantMessageId, assistantMessageDiv);
+                                } else if (data.type === 'content') {
+                                    content = data.content;
+                                    addMessageToUI('assistant', content, reasoningContent, assistantMessageId, assistantMessageDiv);
+                                }
+                            } catch (error) {
+                                console.error('Error processing stream data:', error);
+                                throw error;
                             }
                         }
                     }
@@ -509,7 +520,7 @@
                 }
                 
                 // Refresh chat list
-                loadChatList();
+                loadChatHistory();
             } catch (error) {
                 console.error('Error:', error);
                 chatContainer.innerHTML += '<div class="message error">Error: Failed to get response</div>';
