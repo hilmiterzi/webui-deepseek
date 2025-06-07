@@ -519,8 +519,10 @@
                     messages.push({ role: 'assistant', content: content });
                 }
                 
-                // Refresh chat list
-                loadChatHistory();
+                // Only refresh chat list if this was a new chat
+                if (!currentChatId) {
+                    loadChatHistory();
+                }
             } catch (error) {
                 console.error('Error:', error);
                 chatContainer.innerHTML += '<div class="message error">Error: Failed to get response</div>';
