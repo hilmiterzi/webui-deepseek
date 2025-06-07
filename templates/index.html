@@ -474,11 +474,15 @@
                 console.log('Loaded chat data:', chat);
                 
                 currentChatId = chat.id;
-                messages = chat.messages;
+                // Update messages array with complete message history
+                messages = chat.messages.map(msg => ({
+                    role: msg.role,
+                    content: msg.content
+                }));
                 
                 // Update UI
                 chatContainer.innerHTML = '';
-                messages.forEach(msg => {
+                chat.messages.forEach(msg => {
                     console.log('Loading message:', msg);
                     addMessageToUI(msg.role, msg.content, msg.reasoning_content, msg.id);
                 });
