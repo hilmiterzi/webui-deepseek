@@ -21,10 +21,35 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            transition: width 0.3s ease;
+        }
+        .sidebar.minimized {
+            width: 60px;
+        }
+        .sidebar-toggle {
+            position: absolute;
+            right: -15px;
+            top: 20px;
+            background: #1da1f2;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .sidebar-toggle:hover {
+            background: #1991db;
         }
         .sidebar-header {
             padding: 20px;
             border-bottom: 1px solid #e1e8ed;
+            white-space: nowrap;
+            overflow: hidden;
         }
         .new-chat-btn {
             width: 100%;
@@ -36,6 +61,8 @@
             cursor: pointer;
             font-size: 16px;
             margin-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
         }
         .chat-list {
             flex-grow: 1;
@@ -51,6 +78,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            white-space: nowrap;
+            overflow: hidden;
         }
         .chat-item:hover {
             background-color: #f5f8fa;
@@ -258,6 +287,7 @@
 </head>
 <body>
     <div class="sidebar">
+        <button class="sidebar-toggle" onclick="toggleSidebar()">≡</button>
         <div class="sidebar-header">
             <button class="new-chat-btn" onclick="startNewChat()">New Chat</button>
         </div>
@@ -739,6 +769,13 @@
             messageDiv.replaceChild(form, contentContainer);
             contentInput.focus();
             console.log('Edit form added to message div');
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.toggle('minimized');
+            const toggleBtn = document.querySelector('.sidebar-toggle');
+            toggleBtn.textContent = sidebar.classList.contains('minimized') ? '›' : '≡';
         }
     </script>
 </body>
