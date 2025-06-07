@@ -6,6 +6,16 @@
     <title>Al Jamaah - AI Chat</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -23,6 +33,7 @@
             flex-direction: column;
             height: 100vh;
             transition: width 0.3s ease;
+            overflow: hidden;
         }
         .sidebar.minimized {
             width: 60px;
@@ -124,6 +135,7 @@
             height: 100vh;
             box-sizing: border-box;
             background-color: #343541;
+            overflow: hidden;
         }
         .container {
             max-width: 1000px;
@@ -135,6 +147,7 @@
             display: flex;
             flex-direction: column;
             width: 100%;
+            overflow: hidden;
         }
         h1 {
             color: #ECECF1;
