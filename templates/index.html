@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Al Jamaah - AI Chat</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Add Prism.js for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script>
+        // Configure marked to use Prism.js for syntax highlighting
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (Prism.languages[lang]) {
+                    return `<pre class="language-${lang}"><code class="language-${lang}">${Prism.highlight(code, Prism.languages[lang], lang)}</code></pre>`;
+                }
+                return `<pre><code>${code}</code></pre>`;
+            }
+        });
+    </script>
     <style>
         * {
             margin: 0;
@@ -198,15 +216,72 @@
             width: 100%;
             padding: 10px;
             border: 1px solid #565869;
-            border-radius: 4px;
-            margin-bottom: 5px;
-            font-size: 14px;
-            background-color: #40414F;
-            color: #ECECF1;
         }
-        .message-edit-input:focus, .message-edit-reasoning:focus {
-            outline: none;
-            border-color: #565869;
+        
+        /* Remove our custom code styling and let Prism handle it */
+        .content pre {
+            margin: 10px 0;
+            border-radius: 6px;
+        }
+
+        .content pre code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Only style inline code */
+        p code, li code {
+            background-color: #2D2D2D;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #D4D4D4;
+        }
+
+        /* Prism.js customizations */
+        .token.comment,
+        .token.prolog,
+        .token.doctype,
+        .token.cdata {
+            color: #6A9955;
+        }
+
+        .token.punctuation {
+            color: #D4D4D4;
+        }
+
+        .token.property,
+        .token.tag,
+        .token.boolean,
+        .token.number,
+        .token.constant,
+        .token.symbol {
+            color: #B5CEA8;
+        }
+
+        .token.selector,
+        .token.attr-name,
+        .token.string,
+        .token.char,
+        .token.builtin {
+            color: #CE9178;
+        }
+
+        .token.operator,
+        .token.entity,
+        .token.url,
+        .language-css .token.string,
+        .style .token.string {
+            color: #D4D4D4;
+        }
+
+        .token.keyword {
+            color: #569CD6;
+        }
+
+        .token.function {
+            color: #DCDCAA;
         }
         .user-message {
             background-color: #343541;
@@ -268,22 +343,19 @@
             font-style: italic;
         }
         .content code {
-            background-color: #f0f0f0;
-            padding: 2px 4px;
-            border-radius: 4px;
-            font-family: monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
         }
         .content pre {
-            background-color: #f0f0f0;
-            padding: 10px;
-            border-radius: 4px;
-            overflow-x: auto;
+            margin: 10px 0;
+            border-radius: 6px;
         }
         .content pre code {
-            background-color: transparent;
-            padding: 0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
         }
         .content ul, .content ol {
+            margin: 10px 0;
             padding-left: 20px;
         }
         .content table {
