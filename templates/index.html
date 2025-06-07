@@ -342,17 +342,21 @@
 
         async function loadChat(chatId) {
             try {
+                console.log('Loading chat:', chatId);
                 const response = await fetch(`/api/chats/${chatId}`);
                 if (!response.ok) {
                     throw new Error('Failed to load chat');
                 }
                 const chat = await response.json();
+                console.log('Loaded chat data:', chat);
+                
                 currentChatId = chat.id;
                 messages = chat.messages;
                 
                 // Update UI
                 chatContainer.innerHTML = '';
                 messages.forEach(msg => {
+                    console.log('Loading message:', msg);
                     addMessageToUI(msg.role, msg.content, msg.reasoning_content, msg.id);
                 });
 
@@ -387,107 +391,143 @@
         }
 
         async function sendMessage() {
+            const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
+            
             if (!message) return;
-
+            
             // Disable input while processing
             messageInput.disabled = true;
-            sendButton.disabled = true;
-
-            // Add user message to UI
-            addMessageToUI('user', message);
-            messages.push({ role: 'user', content: message });
+            
+            // Add user message to UI immediately
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message user-message';
+            chatContainer.appendChild(userMessageDiv);
+            addMessageToUI('user', message, null, null, userMessageDiv);
+            
+            // Clear input
             messageInput.value = '';
-
+            
             // Create assistant message container
             const assistantMessageDiv = document.createElement('div');
             assistantMessageDiv.className = 'message assistant-message';
             chatContainer.appendChild(assistantMessageDiv);
-
+            
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
-                        messages,
+                    body: JSON.stringify({
+                        messages: [...messages, { role: 'user', content: message }],
                         chat_id: currentChatId
                     }),
                 });
-
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error('Failed to get response');
                 }
-
+                
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let reasoningContent = '';
                 let content = '';
-                let messageId = null;
-
+                let reasoningContent = '';
+                let userMessageId = null;
+                let assistantMessageId = null;
+                
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
-
+                    
                     const chunk = decoder.decode(value);
                     const lines = chunk.split('\n');
-
+                    
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                
-                                if (data.type === 'error') {
-                                    throw new Error(data.content);
+                            const data = JSON.parse(line.slice(6));
+                            console.log('Received data:', data);
+                            
+                            if (data.type === 'message_id') {
+                                if (!userMessageId) {
+                                    userMessageId = data.id;
+                                    userMessageDiv.setAttribute('data-message-id', userMessageId);
+                                    console.log('Set user message ID:', userMessageId);
+                                } else {
+                                    assistantMessageId = data.id;
+                                    assistantMessageDiv.setAttribute('data-message-id', assistantMessageId);
+                                    console.log('Set assistant message ID:', assistantMessageId);
                                 }
-                                
-                                if (data.type === 'reasoning') {
-                                    reasoningContent = data.content;
-                                    assistantMessageDiv.innerHTML = `
-                                        <div class="reasoning">${marked.parse(reasoningContent)}</div>
-                                        <div class="content">${marked.parse(content)}</div>
-                                    `;
-                                } else if (data.type === 'content') {
-                                    content = data.content;
-                                    assistantMessageDiv.innerHTML = `
-                                        <div class="reasoning">${marked.parse(reasoningContent)}</div>
-                                        <div class="content">${marked.parse(content)}</div>
-                                    `;
-                                }
-                            } catch (e) {
-                                console.error('Error parsing SSE data:', e);
-                                assistantMessageDiv.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                            } else if (data.type === 'reasoning') {
+                                reasoningContent = data.content;
+                                addMessageToUI('assistant', content, reasoningContent, assistantMessageId, assistantMessageDiv);
+                            } else if (data.type === 'content') {
+                                content = data.content;
+                                addMessageToUI('assistant', content, reasoningContent, assistantMessageId, assistantMessageDiv);
                             }
                         }
                     }
                 }
-
-                messages.push({ role: 'assistant', content });
                 
-                // Reload chat history to show new chat if it was created
-                if (!currentChatId) {
-                    await loadChatHistory();
+                // Update messages array
+                messages.push({ role: 'user', content: message });
+                if (content) {
+                    messages.push({ role: 'assistant', content: content });
                 }
+                
+                // Refresh chat list
+                loadChatList();
             } catch (error) {
                 console.error('Error:', error);
-                assistantMessageDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                chatContainer.innerHTML += '<div class="message error">Error: Failed to get response</div>';
+            } finally {
+                messageInput.disabled = false;
+                messageInput.focus();
             }
-
-            // Re-enable input
-            messageInput.disabled = false;
-            sendButton.disabled = false;
-            messageInput.focus();
-            
-            // Scroll to bottom
-            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        function addMessageToUI(role, content, reasoningContent = null, messageId = null) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}-message`;
-            messageDiv.setAttribute('data-message-id', messageId);
+        function addMessageToUI(role, content, reasoningContent = null, messageId = null, messageDiv = null) {
+            console.log('Adding message to UI:', {
+                role,
+                content,
+                reasoningContent,
+                messageId,
+                hasMessageDiv: !!messageDiv
+            });
+
+            if (!messageDiv) {
+                messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}-message`;
+                chatContainer.appendChild(messageDiv);
+            } else {
+                messageDiv.innerHTML = ''; // Clear existing content
+            }
             
+            // Set message ID if provided
+            if (messageId) {
+                messageDiv.setAttribute('data-message-id', messageId);
+                console.log('Set message ID:', messageId);
+            }
+            
+            // Create message content container
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'message-content';
+            
+            // Add reasoning content if it exists
+            if (role === 'assistant' && reasoningContent) {
+                const reasoningDiv = document.createElement('div');
+                reasoningDiv.className = 'reasoning';
+                reasoningDiv.innerHTML = marked.parse(reasoningContent);
+                contentContainer.appendChild(reasoningDiv);
+            }
+            
+            // Add main content
+            const mainContent = document.createElement('div');
+            mainContent.className = 'content';
+            mainContent.innerHTML = marked.parse(content);
+            contentContainer.appendChild(mainContent);
+            
+            // Create actions container
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'message-actions';
             
@@ -496,22 +536,26 @@
             editBtn.innerHTML = '✎';
             editBtn.onclick = (e) => {
                 e.stopPropagation();
-                startEditingMessage(messageDiv, role, content, reasoningContent, messageId);
+                const msgId = messageDiv.getAttribute('data-message-id');
+                console.log('Edit button clicked for message:', msgId);
+                if (!msgId) {
+                    console.error('No message ID found for editing');
+                    return;
+                }
+                // Get the current content and reasoning from the DOM
+                const currentContent = mainContent.textContent;
+                const currentReasoning = role === 'assistant' ? 
+                    messageDiv.querySelector('.reasoning')?.textContent : null;
+                startEditingMessage(messageDiv, role, currentContent, currentReasoning, msgId);
             };
             
             actionsDiv.appendChild(editBtn);
+            
+            // Add both containers to the message div
             messageDiv.appendChild(actionsDiv);
+            messageDiv.appendChild(contentContainer);
             
-            if (role === 'assistant' && reasoningContent) {
-                messageDiv.innerHTML += `
-                    <div class="reasoning">${marked.parse(reasoningContent)}</div>
-                    <div class="content">${marked.parse(content)}</div>
-                `;
-            } else {
-                messageDiv.innerHTML += marked.parse(content);
-            }
-            
-            chatContainer.appendChild(messageDiv);
+            console.log('Message added to UI:', messageDiv.innerHTML);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
@@ -585,25 +629,44 @@
         }
 
         function startEditingMessage(messageDiv, role, content, reasoningContent, messageId) {
-            const originalContent = messageDiv.innerHTML;
+            console.log('Starting message edit:', {
+                role,
+                content,
+                reasoningContent,
+                messageId,
+                element: messageDiv
+            });
+
+            if (!messageId) {
+                console.error('No message ID provided for editing');
+                return;
+            }
+
+            // Store the original content container
+            const originalContent = messageDiv.querySelector('.message-content').cloneNode(true);
+            console.log('Original content:', originalContent);
             
             // Create edit form
             const form = document.createElement('div');
             form.className = 'message-edit-form';
             
-            if (role === 'assistant') {
-                const reasoningInput = document.createElement('textarea');
-                reasoningInput.className = 'message-edit-reasoning';
-                reasoningInput.value = reasoningContent || '';
-                reasoningInput.placeholder = 'Reasoning content...';
-                form.appendChild(reasoningInput);
-            }
-            
+            // Create inputs
             const contentInput = document.createElement('textarea');
             contentInput.className = 'message-edit-input';
             contentInput.value = content;
             contentInput.placeholder = 'Message content...';
             form.appendChild(contentInput);
+            console.log('Added content input:', contentInput.value);
+
+            let reasoningInput = null;
+            if (role === 'assistant') {
+                reasoningInput = document.createElement('textarea');
+                reasoningInput.className = 'message-edit-reasoning';
+                reasoningInput.value = reasoningContent || '';
+                reasoningInput.placeholder = 'Reasoning content...';
+                form.insertBefore(reasoningInput, contentInput);
+                console.log('Added reasoning input:', reasoningInput.value);
+            }
             
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'message-edit-actions';
@@ -613,11 +676,20 @@
             saveBtn.innerHTML = '✓';
             saveBtn.onclick = async (e) => {
                 e.stopPropagation();
+                console.log('Save button clicked');
                 const newContent = contentInput.value.trim();
-                const newReasoning = role === 'assistant' ? reasoningInput.value.trim() : null;
+                const newReasoning = role === 'assistant' && reasoningInput ? reasoningInput.value.trim() : null;
+                
+                console.log('New values:', {
+                    content: newContent,
+                    reasoning: newReasoning,
+                    originalContent,
+                    originalReasoning: reasoningContent
+                });
                 
                 if (newContent && (newContent !== content || (role === 'assistant' && newReasoning !== reasoningContent))) {
                     try {
+                        console.log('Sending update request to:', `/api/chats/${currentChatId}/messages/${messageId}`);
                         const response = await fetch(`/api/chats/${currentChatId}/messages/${messageId}`, {
                             method: 'PUT',
                             headers: {
@@ -629,39 +701,23 @@
                             }),
                         });
                         
+                        console.log('Update response:', response);
+                        
                         if (!response.ok) {
                             throw new Error('Failed to update message');
                         }
                         
                         // Update the message in the UI
-                        messageDiv.innerHTML = '';
-                        const actionsDiv = document.createElement('div');
-                        actionsDiv.className = 'message-actions';
-                        const editBtn = document.createElement('button');
-                        editBtn.className = 'message-edit-btn';
-                        editBtn.innerHTML = '✎';
-                        editBtn.onclick = (e) => {
-                            e.stopPropagation();
-                            startEditingMessage(messageDiv, role, newContent, newReasoning, messageId);
-                        };
-                        actionsDiv.appendChild(editBtn);
-                        messageDiv.appendChild(actionsDiv);
-                        
-                        if (role === 'assistant' && newReasoning) {
-                            messageDiv.innerHTML += `
-                                <div class="reasoning">${marked.parse(newReasoning)}</div>
-                                <div class="content">${marked.parse(newContent)}</div>
-                            `;
-                        } else {
-                            messageDiv.innerHTML += marked.parse(newContent);
-                        }
+                        addMessageToUI(role, newContent, newReasoning, messageId, messageDiv);
+                        console.log('Message updated in UI');
                     } catch (error) {
                         console.error('Error updating message:', error);
                         alert('Failed to update message');
-                        messageDiv.innerHTML = originalContent;
+                        messageDiv.replaceChild(originalContent, messageDiv.querySelector('.message-content'));
                     }
                 } else {
-                    messageDiv.innerHTML = originalContent;
+                    console.log('No changes detected, restoring original content');
+                    messageDiv.replaceChild(originalContent, messageDiv.querySelector('.message-content'));
                 }
             };
             
@@ -670,16 +726,19 @@
             cancelBtn.innerHTML = '✕';
             cancelBtn.onclick = (e) => {
                 e.stopPropagation();
-                messageDiv.innerHTML = originalContent;
+                console.log('Cancel button clicked, restoring original content');
+                messageDiv.replaceChild(originalContent, messageDiv.querySelector('.message-content'));
             };
             
             actionsDiv.appendChild(saveBtn);
             actionsDiv.appendChild(cancelBtn);
             form.appendChild(actionsDiv);
             
-            messageDiv.innerHTML = '';
-            messageDiv.appendChild(form);
+            // Replace content with edit form
+            const contentContainer = messageDiv.querySelector('.message-content');
+            messageDiv.replaceChild(form, contentContainer);
             contentInput.focus();
+            console.log('Edit form added to message div');
         }
     </script>
 </body>

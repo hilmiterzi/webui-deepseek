@@ -65,6 +65,7 @@ def get_chat(chat_id):
             'id': chat.id,
             'title': chat.title,
             'messages': [{
+                'id': msg.id,
                 'role': msg.role,
                 'content': msg.content,
                 'reasoning_content': msg.reasoning_content
@@ -114,6 +115,19 @@ def chat():
             
             reasoning_content = ""
             content = ""
+            saved_messages = []
+            
+            # Save user messages first
+            for msg in messages:
+                message = Message(role=msg['role'], content=msg['content'], chat_id=chat_id)
+                db.session.add(message)
+                db.session.commit()
+                saved_messages.append({
+                    'id': message.id,
+                    'role': message.role,
+                    'content': message.content
+                })
+                yield f"data: {json.dumps({'type': 'message_id', 'id': message.id})}\n\n"
             
             for chunk in response:
                 if hasattr(chunk.choices[0].delta, 'reasoning_content') and chunk.choices[0].delta.reasoning_content:
@@ -123,11 +137,6 @@ def chat():
                     content += chunk.choices[0].delta.content
                     yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
             
-            # Save messages to database after completion
-            for msg in messages:
-                message = Message(role=msg['role'], content=msg['content'], chat_id=chat_id)
-                db.session.add(message)
-            
             if content:
                 message = Message(
                     role='assistant',
@@ -136,12 +145,8 @@ def chat():
                     chat_id=chat_id
                 )
                 db.session.add(message)
-            
-            try:
                 db.session.commit()
-            except Exception as e:
-                print(f"Error saving messages: {str(e)}")
-                db.session.rollback()
+                yield f"data: {json.dumps({'type': 'message_id', 'id': message.id})}\n\n"
         
         return Response(stream_with_context(generate()), mimetype='text/event-stream')
     except Exception as e:
