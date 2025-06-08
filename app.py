@@ -29,10 +29,9 @@ class Message(db.Model):
     chat_id = db.Column(db.Integer, db.ForeignKey('chat.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Force recreate database with new schema
+# Initialize database
 with app.app_context():
-    db.drop_all()  # Drop all tables
-    db.create_all()  # Create tables with new schema
+    db.create_all()  # This will only create tables if they don't exist
 
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
